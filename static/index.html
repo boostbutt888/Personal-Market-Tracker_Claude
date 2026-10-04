@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23b5651d'/%3E%3Cpath d='M7 20l6-6 4 4 8-8' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="security-banner" class="security-banner" hidden></div>
+  <div id="demo-banner" class="demo-banner" hidden>Demo mode — prices, charts and headlines are synthetic. Run without <code>--demo</code> for live data.</div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>Market Tracker</h1>
+        <div class="brand-sub"><span id="today-label"></span>
+          <button type="button" class="version-chip" id="version-chip" title="Release notes" hidden></button></div>
+      </div>
+    </div>
+    <div class="clocks" id="market-clocks" aria-label="Exchange status"></div>
+    <div class="topbar-actions">
+      <span class="updated" id="last-updated">Not loaded yet</span>
+      <button class="btn" id="refresh-button" type="button" title="Refresh (R)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+        <span>Refresh</span>
+      </button>
+      <button class="btn icon-only" id="controls-button" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+      <div class="bell-wrap">
+        <button class="btn icon-only" id="bell-button" type="button" title="Notifications" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          <span class="badge" id="bell-badge" hidden>0</span>
+        </button>
+        <div class="popover" id="bell-popover" hidden>
+          <div class="popover-head">
+            <b>Notifications</b>
+            <span class="spacer"></span>
+            <button type="button" class="btn small ghost" id="notif-read-all">Mark all read</button>
+            <button type="button" class="btn small ghost" id="notif-clear">Clear</button>
+          </div>
+          <ul class="notif-list" id="notif-list"></ul>
+        </div>
+      </div>
+      <button class="btn account-btn" id="account-button" type="button" title="Account &amp; security">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        <span id="account-name">Account</span>
+      </button>
+      <button class="btn icon-only" id="signout-button" type="button" title="Sign out" aria-label="Sign out">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="summary" id="summary" aria-label="Portfolio summary"></section>
+
+  <main id="sections">
+
+    <!-- WATCHLIST -->
+    <section class="panel collapsible-panel" data-collapsible="tickers">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Watchlist</h2></button>
+        <div class="panel-tools">
+          <div class="seg" id="market-select" role="tablist" aria-label="Region">
+            <button type="button" data-market="US">US</button>
+            <button type="button" data-market="SG">SG</button>
+            <button type="button" data-market="ALL">All</button>
+          </div>
+          <div class="seg" id="range-quick" aria-label="Chart range">
+            <button type="button" data-range="1mo">1M</button>
+            <button type="button" data-range="3mo">3M</button>
+            <button type="button" data-range="6mo">6M</button>
+            <button type="button" data-range="1y">1Y</button>
+            <button type="button" data-range="5y">5Y</button>
+          </div>
+        </div>
+      </header>
+      <div class="panel-body">
+        <form class="add-form" id="add-form" autocomplete="off">
+          <div class="field grow">
+            <input id="symbol-input" placeholder="Ticker or company — e.g. TSLA, DBS" aria-label="Ticker">
+            <ul class="suggestions" id="suggestions" hidden></ul>
+          </div>
+          <input id="label-input" class="field" placeholder="Label (optional)" aria-label="Label">
+          <select id="add-market" aria-label="Market">
+            <option value="US">US</option>
+            <option value="SG">SG</option>
+          </select>
+          <button class="btn primary" type="submit">Add</button>
+        </form>
+        <div class="card-grid" id="cards"></div>
+        <p class="empty" id="cards-empty" hidden>No tickers in this region yet. Add one above.</p>
+      </div>
+    </section>
+
+    <!-- ALERTS -->
+    <section class="panel collapsible-panel" data-collapsible="alerts">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Alert rules</h2></button>
+        <div class="panel-tools">
+          <button class="btn small ghost" id="alerts-check" type="button" title="Evaluate every rule now">Check now</button>
+          <button class="btn small ghost" id="alerts-channels" type="button">Channels &amp; timing</button>
+          <button class="btn small primary" id="alerts-new" type="button">+ New rule</button>
+        </div>
+      </header>
+      <div class="panel-body">
+        <div class="alert-status" id="alert-status"></div>
+        <div class="rule-list" id="rule-list"></div>
+        <div class="presets" id="alert-presets"></div>
+      </div>
+    </section>
+
+    <!-- ACTIONS -->
+    <section class="panel collapsible-panel" data-collapsible="actions">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Action prompts</h2></button>
+        <div class="panel-tools"><span class="hint">Rules-based signals from price trend, range and news flow</span></div>
+      </header>
+      <div class="panel-body"><div class="action-list" id="actions"></div></div>
+    </section>
+
+    <!-- BENCHMARK -->
+    <section class="panel collapsible-panel" data-collapsible="benchmark">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Watchlist vs benchmarks</h2></button>
+        <div class="panel-tools"><div class="chips" id="benchmark-controls"></div></div>
+      </header>
+      <div class="panel-body">
+        <div class="bench-wrap" id="benchmark"></div>
+      </div>
+    </section>
+
+    <!-- OPTIONS -->
+    <section class="panel collapsible-panel" data-collapsible="options">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Options ideas</h2></button>
+        <div class="panel-tools">
+          <select id="options-symbol" aria-label="Ticker"></select>
+          <div class="seg" id="options-focus">
+            <button type="button" data-focus="all">All</button>
+            <button type="button" data-focus="bullish">Bullish</button>
+            <button type="button" data-focus="bearish">Bearish</button>
+            <button type="button" data-focus="neutral">Neutral</button>
+            <button type="button" data-focus="income">Income</button>
+            <button type="button" data-focus="hedge">Hedge</button>
+          </div>
+        </div>
+      </header>
+      <div class="panel-body">
+        <div id="options-context" class="options-context"></div>
+        <div class="options-grid" id="options"></div>
+        <p class="fineprint">Educational structures only — strikes are rounded estimates from recent volatility, not live option-chain quotes.</p>
+      </div>
+    </section>
+
+    <!-- NEWS -->
+    <section class="panel collapsible-panel" data-collapsible="news">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>News · last 3 days</h2></button>
+        <div class="panel-tools"><button class="btn small ghost" id="news-expand" type="button">Expand all</button></div>
+      </header>
+      <div class="panel-body"><div class="news-list" id="news"></div></div>
+    </section>
+
+    <!-- MARKET -->
+    <section class="panel collapsible-panel" data-collapsible="market">
+      <header class="panel-head">
+        <button class="panel-toggle" type="button" aria-expanded="true"><span class="chev"></span><h2>Market map</h2></button>
+        <div class="panel-tools">
+          <label class="inline-label">Drilldown
+            <select id="market-count">
+              <option value="12">12</option>
+              <option value="20">20</option>
+              <option value="999">All</option>
+            </select>
+          </label>
+        </div>
+      </header>
+      <div class="panel-body">
+        <div id="market-overview"></div>
+        <div id="market-drilldown" class="drilldown" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <button type="button" class="link" id="version">…</button>
+    <span id="fx-label"></span>
+    <span>Data: Yahoo Finance · Stooq · Google News · Frankfurter. Not investment advice.</span>
+  </footer>
+
+  <!-- Stock card template -->
+  <template id="stock-card-template">
+    <article class="stock-card">
+      <div class="card-top">
+        <div class="card-id">
+          <div class="card-symbol"><span class="sym"></span><span class="mkt-chip"></span></div>
+          <div class="card-label"></div>
+        </div>
+        <div class="card-quote">
+          <div class="card-price num"></div>
+          <div class="card-change num"></div>
+        </div>
+      </div>
+      <div class="card-ext num" hidden></div>
+      <svg class="spark" viewBox="0 0 300 84" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="card-range num"></div>
+      <div class="card-position"></div>
+      <div class="card-foot">
+        <span class="source"></span>
+        <div class="card-buttons">
+          <button type="button" class="btn small ghost pos-btn">Position</button>
+          <button type="button" class="btn small ghost alert-btn" title="Alert rules for this ticker">Alert</button>
+          <button type="button" class="btn small ghost opt-btn" title="Options ideas">Options</button>
+          <button type="button" class="btn small ghost danger remove-btn" title="Remove" aria-label="Remove">✕</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <!-- Position modal -->
+  <div class="modal-shell" id="position-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <form class="modal" id="position-form" role="dialog" aria-modal="true" aria-labelledby="position-title">
+      <h3 id="position-title">Position</h3>
+      <p class="modal-sub" id="position-sub"></p>
+      <label>Shares / units<input id="position-qty" type="number" step="any" min="0" inputmode="decimal"></label>
+      <label>Average price<input id="position-avg" type="number" step="any" min="0" inputmode="decimal"></label>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost danger" id="position-clear">Clear</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Controls modal -->
+  <!-- Release notes -->
+  <div class="modal-shell" id="release-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal wide tall" role="dialog" aria-modal="true" aria-labelledby="release-title">
+      <div class="modal-title-row">
+        <h3 id="release-title">Release notes</h3>
+        <button type="button" class="btn small ghost" data-close aria-label="Close">✕</button>
+      </div>
+      <p class="modal-sub" id="release-current"></p>
+      <div id="release-body" class="release-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-shell" id="controls-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="controls-title">
+      <h3 id="controls-title">Settings</h3>
+      <div class="settings-grid">
+        <label>Refresh
+          <select id="refresh-mode"><option value="manual">Manual</option><option value="auto">Auto</option></select>
+        </label>
+        <label>Every
+          <select id="refresh-interval">
+            <option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option>
+            <option value="10">10 min</option><option value="15">15 min</option>
+          </select>
+        </label>
+        <label>Theme
+          <select id="theme-select">
+            <option value="auto">Auto (dark 7pm–7am)</option><option value="light">Light</option>
+            <option value="dark">Dark</option><option value="random">Random palette</option>
+          </select>
+        </label>
+        <label>Display currency
+          <select id="currency-select"><option value="USD">USD</option><option value="SGD">SGD</option></select>
+        </label>
+        <label>Change shown as
+          <select id="change-select"><option value="percent">Percent</option><option value="value">Value</option></select>
+        </label>
+        <label>Chart range
+          <select id="range-select">
+            <option value="1mo">1 month</option><option value="3mo">3 months</option><option value="6mo">6 months</option>
+            <option value="1y">1 year</option><option value="2y">2 years</option><option value="5y">5 years</option><option value="max">Max</option>
+          </select>
+        </label>
+      </div>
+      <h4>Section order</h4>
+      <ol class="order-list" id="section-order"></ol>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="order-reset">Reset layout</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn primary" data-close>Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account & security modal -->
+  <div class="modal-shell" id="account-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal wide tall" role="dialog" aria-modal="true" aria-labelledby="account-title">
+      <div class="modal-title-row">
+        <h3 id="account-title">Account &amp; security</h3>
+        <button type="button" class="btn small ghost" data-close aria-label="Close">✕</button>
+      </div>
+      <nav class="tabs" id="account-tabs" role="tablist">
+        <button type="button" data-tab="overview">Overview</button>
+        <button type="button" data-tab="password">Password</button>
+        <button type="button" data-tab="twofactor">Two-factor</button>
+        <button type="button" data-tab="sessions">Sessions</button>
+        <button type="button" data-tab="activity">Activity</button>
+      </nav>
+      <section class="tab-body" data-pane="overview"></section>
+      <section class="tab-body" data-pane="password" hidden>
+        <form id="password-form" class="stack" autocomplete="off">
+          <p class="hint">Changing your password re-protects your encryption key. Other signed-in devices are signed out.</p>
+          <input type="text" autocomplete="username" id="pw-username" hidden>
+          <label>Current password<input id="pw-current" type="password" autocomplete="current-password" required></label>
+          <label>New password<input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
+          <div class="strength" id="pw-strength"><i></i><span></span></div>
+          <label>Confirm new password<input id="pw-confirm" type="password" autocomplete="new-password" required></label>
+          <p class="form-error" id="pw-error" hidden></p>
+          <div class="modal-actions"><span class="spacer"></span><button type="submit" class="btn primary">Change password</button></div>
+        </form>
+      </section>
+      <section class="tab-body" data-pane="twofactor" hidden></section>
+      <section class="tab-body" data-pane="sessions" hidden></section>
+      <section class="tab-body" data-pane="activity" hidden></section>
+    </div>
+  </div>
+
+  <!-- One-time secret display (backup codes / recovery key) -->
+  <div class="modal-shell" id="secret-modal" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="secret-title">
+      <h3 id="secret-title"></h3>
+      <p class="modal-sub" id="secret-sub"></p>
+      <div class="secret-box mono" id="secret-value"></div>
+      <div class="row-actions">
+        <button type="button" class="btn small" id="secret-copy">Copy</button>
+        <button type="button" class="btn small" id="secret-download">Download .txt</button>
+      </div>
+      <label class="check"><input type="checkbox" id="secret-saved"> I've saved these somewhere safe</label>
+      <div class="modal-actions"><span class="spacer"></span><button type="button" class="btn primary" id="secret-done" disabled>Done</button></div>
+    </div>
+  </div>
+
+  <!-- Rule editor -->
+  <div class="modal-shell" id="rule-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <form class="modal" id="rule-form" role="dialog" aria-modal="true" aria-labelledby="rule-title">
+      <h3 id="rule-title">New alert rule</h3>
+      <label>Notify me when…
+        <select id="rule-type">
+          <optgroup label="Price">
+            <option value="price_above">Price rises above</option>
+            <option value="price_below">Price falls below</option>
+            <option value="day_up">It rises by at least % in a day</option>
+            <option value="day_down">It falls by at least % in a day</option>
+          </optgroup>
+          <optgroup label="Trend">
+            <option value="off_high">It drops % below its 3-month high</option>
+            <option value="cross_above_ma">It crosses above its moving average</option>
+            <option value="cross_below_ma">It crosses below its moving average</option>
+          </optgroup>
+          <optgroup label="My position">
+            <option value="take_profit">My gain on cost reaches % (take profit)</option>
+            <option value="stop_loss">My loss on cost reaches % (stop loss)</option>
+          </optgroup>
+          <optgroup label="My portfolio">
+            <option value="portfolio_up">Portfolio is up % today</option>
+            <option value="portfolio_down">Portfolio is down % today</option>
+            <option value="concentration">One holding is more than % of the portfolio</option>
+          </optgroup>
+        </select>
+      </label>
+      <label id="rule-symbol-wrap">Ticker<select id="rule-symbol"></select></label>
+      <label id="rule-region-wrap" hidden>Holdings in
+        <select id="rule-region"><option value="ALL">All regions (converted)</option><option value="US">US only</option><option value="SG">Singapore only</option></select>
+      </label>
+      <label id="rule-value-wrap"><span id="rule-value-label">Price</span>
+        <span class="input-suffix"><input id="rule-value" type="number" step="any" min="0" inputmode="decimal"><em id="rule-value-unit"></em></span>
+      </label>
+      <label id="rule-period-wrap" hidden>Moving average
+        <select id="rule-period"><option value="20">20-day</option><option value="50">50-day</option><option value="100">100-day</option><option value="200">200-day</option></select>
+      </label>
+      <div class="two-col">
+        <label>Repeat
+          <select id="rule-repeat"><option value="rearm">Every time it happens</option><option value="once">Once, then switch off</option></select>
+        </label>
+        <label>Quiet period after firing
+          <select id="rule-cooldown"><option value="15">15 min</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">1 day</option><option value="10080">1 week</option></select>
+        </label>
+      </div>
+      <label>Note (optional)<input id="rule-note" maxlength="200" placeholder="e.g. Re-check thesis; trim to 5%"></label>
+      <p class="rule-preview" id="rule-preview"></p>
+      <p class="form-error" id="rule-error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost danger" id="rule-delete" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save rule</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Channels & timing -->
+  <div class="modal-shell" id="channels-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <form class="modal wide tall" id="channels-form" role="dialog" aria-modal="true" aria-labelledby="channels-title" autocomplete="off">
+      <div class="modal-title-row">
+        <h3 id="channels-title">Notification channels</h3>
+        <button type="button" class="btn small ghost" data-close aria-label="Close">✕</button>
+      </div>
+      <p class="modal-sub">Every alert lands in the bell. Switch on any extra channels below. Tokens and passwords are stored encrypted in your vault.</p>
+
+      <fieldset class="channel" data-channel="browser">
+        <legend><label class="switch"><input type="checkbox" name="enabled"><span></span></label> Desktop pop-ups</legend>
+        <p class="hint" id="browser-perm"></p>
+        <div class="row-actions"><button type="button" class="btn small" id="browser-allow">Allow in this browser</button></div>
+      </fieldset>
+
+      <fieldset class="channel" data-channel="telegram">
+        <legend><label class="switch"><input type="checkbox" name="enabled"><span></span></label> Telegram</legend>
+        <p class="hint">Message <b>@BotFather</b> → /newbot to get a token. Send your bot a message, then get your chat ID from <b>@userinfobot</b>.</p>
+        <div class="two-col">
+          <label>Bot token<input name="botToken" type="password" autocomplete="off" spellcheck="false"></label>
+          <label>Chat ID<input name="chatId" spellcheck="false"></label>
+        </div>
+        <div class="row-actions"><button type="button" class="btn small" data-test="telegram">Send test</button><span class="test-result"></span></div>
+      </fieldset>
+
+      <fieldset class="channel" data-channel="ntfy">
+        <legend><label class="switch"><input type="checkbox" name="enabled"><span></span></label> ntfy phone push</legend>
+        <p class="hint">Install the free <b>ntfy</b> app, subscribe to a long, hard-to-guess topic name, and enter the same name here.</p>
+        <div class="two-col">
+          <label>Topic<input name="topic" spellcheck="false" placeholder="e.g. jack-alerts-7f3k9q"></label>
+          <label>Server<input name="server" spellcheck="false"></label>
+        </div>
+        <label>Access token (optional)<input name="token" type="password" autocomplete="off"></label>
+        <div class="row-actions"><button type="button" class="btn small" data-test="ntfy">Send test</button><span class="test-result"></span></div>
+      </fieldset>
+
+      <fieldset class="channel" data-channel="email">
+        <legend><label class="switch"><input type="checkbox" name="enabled"><span></span></label> Email</legend>
+        <p class="hint">For Gmail use smtp.gmail.com, port 465, SSL, and a Google <b>app password</b> (not your normal password).</p>
+        <div class="three-col">
+          <label>SMTP server<input name="host" spellcheck="false"></label>
+          <label>Port<input name="port" type="number" min="1" max="65535"></label>
+          <label>Security<select name="security"><option value="ssl">SSL</option><option value="starttls">STARTTLS</option><option value="none">None</option></select></label>
+        </div>
+        <div class="two-col">
+          <label>Username<input name="username" autocomplete="off" spellcheck="false"></label>
+          <label>Password / app password<input name="password" type="password" autocomplete="new-password"></label>
+          <label>From (optional)<input name="from" spellcheck="false"></label>
+          <label>Send to<input name="to" type="email" spellcheck="false"></label>
+        </div>
+        <div class="row-actions"><button type="button" class="btn small" data-test="email">Send test</button><span class="test-result"></span></div>
+      </fieldset>
+
+      <fieldset class="channel" data-channel="webhook">
+        <legend><label class="switch"><input type="checkbox" name="enabled"><span></span></label> Discord / Slack webhook</legend>
+        <label>Webhook URL<input name="url" type="password" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…"></label>
+        <div class="row-actions"><button type="button" class="btn small" data-test="webhook">Send test</button><span class="test-result"></span></div>
+      </fieldset>
+
+      <h4>Timing</h4>
+      <div class="two-col">
+        <label>Check rules every
+          <select id="alert-interval"><option value="1">1 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option></select>
+        </label>
+        <div class="quiet">
+          <label class="check"><input type="checkbox" id="quiet-enabled"> Quiet hours (mute phone / email / chat)</label>
+          <div class="quiet-times"><input type="time" id="quiet-start"> to <input type="time" id="quiet-end"></div>
+        </div>
+      </div>
+      <p class="form-error" id="channels-error" hidden></p>
+      <div class="modal-actions">
+        <span class="hint">“Send test” saves your settings first.</span>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/vendor/qrcode.js"></script>
+  <script src="/static/app.js"></script>
+  <script src="/static/account.js"></script>
+  <script src="/static/alerts.js"></script>
+</body>
+</html>
